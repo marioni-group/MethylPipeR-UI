@@ -34,6 +34,7 @@ ui <- fluidPage(
             fileInput('incrementalCovariates', 'Upload .rds or .csv file. Covariates matrix/data.frame for incremental model.',
                       multiple = FALSE, accept = c('.rds')),
             selectInput('modelType', label = 'Select model type (binary/survival/continuous)', choices = c('binary', 'survival', 'continuous')),
+            textInput('n_years', label = 'Value of n for n-year risk prediction', value = '10'),
             selectInput('modelMethod', label = 'Select model method (glmnet/bart/rf)', choices = c('glmnet', 'bart', 'rf')),
             actionButton('run', 'Run'),
             shinyjs::hidden(p(id = 'processingText', 'Fitting model...'))
@@ -41,13 +42,23 @@ ui <- fluidPage(
         mainPanel(
             tabsetPanel(
                 tabPanel('Diagnostics', plotOutput('diagnostics', height = '800px')),
-                tabPanel('Performance', verbatimTextOutput('console', placeholder = FALSE))
+                tabPanel('Performance', verbatimTextOutput('console', placeholder = FALSE)),
+                tabPanel('Train + Test Performance', verbatimTextOutput('train_test_performance', placeholder = FALSE))
             )
         )
     )
 )
 
 server <- function(input, output) {
+    
+    # Dynamically show or hide text box for specifying n for n-year risk prediction (survival model only)
+    observeEvent(input$modelType, {
+        if (input$modelType == 'survival') {
+            shinyjs::show('n_years')
+        } else {
+            shinyjs::hide('n_years')
+        }
+    })
     
     glmFamilyLookup <- list('binary' = 'binomial', 'continuous' = 'gaussian', 'survival' = 'cox')
     
@@ -148,7 +159,10 @@ server <- function(input, output) {
     })
     
     output$console <- renderPrint({
-        
+        if (modelReady()) {
+            enableInput()
+            modelReady(FALSE)
+        }
         # summary(mprModel()$model)
         req(incrementalModel())
         model <- isolate(incrementalModel())
@@ -169,6 +183,15 @@ server <- function(input, output) {
         incrementalModelResult <- incrementalModel()
         check_model(incrementalModelResult$full$model)
         # plot(compare_performance(incrementalModelResult$full$model, incrementModelResult$null$model))
+    })
+    
+    output$train_test_performance <- renderPrint({
+        if (modelReady()) {
+            enableInput()
+            modelReady(FALSE)
+        }
+        req(mprModel())
+        print(summary(isolate(mprModel()$model)))
     })
 }
 
