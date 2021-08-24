@@ -12,6 +12,7 @@ library(bslib)
 library(MethylPipeR)
 library(performance)
 library(see)
+library(shinyBS)
 
 ui <- fluidPage(
     shinyjs::useShinyjs(),
@@ -21,24 +22,38 @@ ui <- fluidPage(
 
     sidebarLayout(
         sidebarPanel(
-            fileInput('trainXs', 'Upload .rds file. Training data matrix/data.frame.',
-                      multiple = FALSE, accept = c('.rds')),
-            fileInput('trainY', 'Upload .rds file. Training response vector.',
-                      multiple = FALSE, accept = c('.rds')),
-            fileInput('testXs', 'Upload .rds file. Test data matrix/data.frame.',
-                      multiple = FALSE, accept = c('.rds')),
-            fileInput('testY', 'Upload .rds file. Test response vector.',
-                      multiple = FALSE, accept = c('.rds')),
-            checkboxInput('cvCheck', 'Use cross-validation for training set model fitting.'),
-            checkboxInput('incrementalCheck', 'Fit incremental model'),
-            fileInput('incrementalCovariates', 'Upload .rds or .csv file. Covariates matrix/data.frame for incremental model.',
-                      multiple = FALSE, accept = c('.rds')),
-            selectInput('modelType', label = 'Select model type (binary/survival/continuous)', choices = c('binary', 'survival', 'continuous')),
-            textInput('n_years', label = 'Value of n for n-year risk prediction', value = '10'),
-            selectInput('modelMethod', label = 'Select model method (glmnet/bart/rf)', choices = c('glmnet', 'bart', 'rf')),
-            actionButton('run', 'Run'),
-            shinyjs::hidden(p(id = 'processingText', 'Fitting model...'))
+            tabsetPanel(
+                tabPanel('Data upload and model specification',
+                    fileInput('trainXs', 'Upload .rds file. Training data matrix/data.frame.',
+                              multiple = FALSE, accept = c('.rds')),
+                    # bsButton('trainXsHelp', label = '', icon = icon('question'), style = 'info', size = 'extra-small'),
+                    bsTooltip('trainXs', 'Rows should correspond to individuals in the dataset and columns should correspond to features.', 
+                              placement = 'right', trigger = 'hover', options = list(container = 'body')),
+                    fileInput('trainY', 'Upload .rds file. Training response vector.',
+                              multiple = FALSE, accept = c('.rds')),
+                    fileInput('testXs', 'Upload .rds file. Test data matrix/data.frame.',
+                              multiple = FALSE, accept = c('.rds')),
+                    fileInput('testY', 'Upload .rds file. Test response vector.',
+                              multiple = FALSE, accept = c('.rds')),
+                    checkboxInput('cvCheck', 'Use cross-validation for training set model fitting.'),
+                    checkboxInput('incrementalCheck', 'Fit incremental model'),
+                    fileInput('incrementalCovariates', 'Upload .rds or .csv file. Covariates matrix/data.frame for incremental model.',
+                              multiple = FALSE, accept = c('.rds')),
+                    selectInput('modelType', label = 'Select model type (binary/survival/continuous)', choices = c('binary', 'survival', 'continuous')),
+                    textInput('n_years', label = 'Value of n for n-year risk prediction', value = '10'),
+                    textInput('tte_colname', label = 'Time-to-event column name in response table', value = 'time_to_event'),
+                    textInput('event_colname', label = 'Event column name in response table', value = 'Event'),
+                    selectInput('modelMethod', label = 'Select model method (glmnet/bart/rf)', choices = c('glmnet', 'bart', 'rf')),
+                    actionButton('run', 'Run'),
+                    shinyjs::hidden(p(id = 'processingText', 'Fitting model...'))
+                ),
+                tabPanel('Preprocessing',
+                    checkboxInput('tte_threshold_train', 'Perform time-to-event thresholding on training set'),
+                    checkboxInput('tte_threshold_test', 'Perform time-to-event thresholding on test set'),
+                    textInput('tte_threshold', label = 'Time-to-event threshold', value = '10'))
+            )
         ),
+        
         mainPanel(
             tabsetPanel(
                 tabPanel('Diagnostics', plotOutput('diagnostics', height = '800px')),
@@ -55,12 +70,16 @@ server <- function(input, output) {
     observeEvent(input$modelType, {
         if (input$modelType == 'survival') {
             shinyjs::show('n_years')
+            shinyjs::show('tte_colname')
+            shinyjs::show('event_colname')
         } else {
             shinyjs::hide('n_years')
+            shinyjs::hide('tte_colname')
+            shinyjs::hide('event_colname')
         }
     })
     
-    glmFamilyLookup <- list('binary' = 'binomial', 'continuous' = 'gaussian', 'survival' = 'cox')
+    glmFamilyLookup <- list('binary' = 'binomial', 'continuous' = 'gaussian', 'survival' = 'binomial')
     
     disableInput <- function() {
         shinyjs::disable('run')
@@ -121,6 +140,7 @@ server <- function(input, output) {
         disableInput()
         trainXs <- trainXsDF()
         trainY <- trainYDF()
+        incrementalXs <- NULL
         if (is.null(input$testXs)) {
             testXs <- trainXs
         } else {
@@ -131,28 +151,77 @@ server <- function(input, output) {
         } else {
             testY <- testYDF()
         }
-        if (isolate(input$cvCheck)) {
-            mprModel(fitMPRModelCV(type = input$modelType, method = input$modelMethod, trainXs = trainXs, trainY = trainY, alpha = 0))
-        } else {
-            mprModel(fitMPRModel(type = input$modelType, method = input$modelMethod, trainXs = trainXs, trainY = trainY, alpha = 0))
+        # browser()
+        eventColname <- input$event_colname
+        
+        # If trainY is a vector, convert to a data.frame with a single column for consistency across model types
+        if (is.vector(trainY)) {
+            trainY <- data.frame(trainY)
+            colnames(trainY) <- c(eventColname)
         }
-        if (isolate(input$incrementalCheck)) {
+        # Same for testY
+        if (is.vector(testY)) {
+            testY <- data.frame(testY)
+            colnames(testY) <- c(eventColname)
+        }
+        
+        if (input$tte_threshold_train) {
             # browser()
-            model <- isolate(mprModel())
+            tteThresholdResult <- thresholdTTE(trainY, objectsToFilter = list('trainXs' = trainXs), threshold = as.numeric(input$tte_threshold))
+            trainY <- tteThresholdResult$targetFiltered
+            trainXs <- tteThresholdResult$objectsFiltered$trainXs
+            tteThresholdResult <- NULL
+        }
+        
+        if (input$tte_threshold_test) {
+            if (input$incrementalCheck) {
+                tteThresholdResult <- thresholdTTE(testY, objectsToFilter = list('testXs' = testXs, 'covariates' = as.data.frame(incrementalCovariatesDF())), threshold = as.numeric(input$tte_threshold))
+                incrementalXs <- tteThresholdResult$objectsFiltered$covariates
+            } else {
+                tteThresholdResult <- thresholdTTE(testY, objectsToFilter = list('testXs' = testXs), threshold = as.numeric(input$tte_threshold))
+            }
+            testY <- tteThresholdResult$targetFiltered
+            testXs <- tteThresholdResult$objectsFiltered$testXs
+            tteThresholdResult <- NULL
+        }
+        
+        # This needs to be redesigned to handle all model types. Currently only works for glmnet
+        if (isolate(input$cvCheck)) {
+            if (input$modelType == 'survival') {
+                mprModel(fitMPRModelCV(type = input$modelType, method = input$modelMethod, trainXs = trainXs, trainY = trainY, 
+                                       tteColname = input$tte_colname, eventColname = input$event_colname, alpha = 0))
+            } else {
+                mprModel(fitMPRModelCV(type = input$modelType, method = input$modelMethod, trainXs = trainXs, trainY = trainY[, eventColname], 
+                                       tteColname = input$tte_colname, eventColname = input$event_colname, alpha = 0))
+            }
+        } else {
+            if (input$modelType == 'survival') {
+                mprModel(fitMPRModel(type = input$modelType, method = input$modelMethod, trainXs = trainXs, trainY = trainY,
+                                     tteColname = input$tte_colname, eventColname = input$event_colname, alpha = 0))
+            } else {
+                mprModel(fitMPRModel(type = input$modelType, method = input$modelMethod, trainXs = trainXs, trainY = trainY[, eventColname],
+                                     tteColname = input$tte_colname, eventColname = input$event_colname, alpha = 0))
+            }
+        }
+        if (input$incrementalCheck) {
+            # browser()
+            model <- mprModel()
             # browser()
             # This will need to be adapted to reflect whether the model actually used CV or not rather than relying on the tickbox
             # It will also need to be adapted for other model methods and types
-            if (isolate(input$cvCheck)) {
+            if (input$cvCheck) {
                 testPredictions(predictMPRModel(model, testXs, s = 'lambda.min', type = 'link'))
             } else {
                 testPredictions(predictMPRModel(model, testXs, s = model$model$lambda[[1]], type = 'link'))
             }
             # browser()
-            incrementalXs <- data.frame(isolate(incrementalCovariatesDF()))
+            if (is.null(incrementalXs)) {
+                incrementalXs <- data.frame(incrementalCovariatesDF())
+            }
             covColnames <- colnames(incrementalXs)
-            score <- isolate(testPredictions())
+            score <- testPredictions()
             incrementalXs$score <- score
-            incrementalXs$y <- isolate(testY)
+            incrementalXs$y <- testY[, eventColname]
             incrementalModel(fitMPRModelIncremental(incrementalXs, yColname = 'y', covColnames = covColnames, scoreColname = 'score', family = glmFamilyLookup[[input$modelType]]))
         } 
         modelReady(TRUE)
