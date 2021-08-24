@@ -14,6 +14,9 @@ library(performance)
 library(see)
 library(shinyBS)
 
+# Increase max file upload size to 30 GB
+options(shiny.maxRequestSize = 30 * 1024^3)
+
 ui <- fluidPage(
     shinyjs::useShinyjs(),
     theme = bs_theme(bootswatch = 'superhero'),
@@ -29,11 +32,11 @@ ui <- fluidPage(
                     # bsButton('trainXsHelp', label = '', icon = icon('question'), style = 'info', size = 'extra-small'),
                     bsTooltip('trainXs', 'Rows should correspond to individuals in the dataset and columns should correspond to features.', 
                               placement = 'right', trigger = 'hover', options = list(container = 'body')),
-                    fileInput('trainY', 'Upload .rds file. Training response vector.',
+                    fileInput('trainY', 'Upload .rds file. Training response vector/matrix/data.frame. Event/response column name must be specified if uploading a matrix/data.frame.',
                               multiple = FALSE, accept = c('.rds')),
                     fileInput('testXs', 'Upload .rds file. Test data matrix/data.frame.',
                               multiple = FALSE, accept = c('.rds')),
-                    fileInput('testY', 'Upload .rds file. Test response vector.',
+                    fileInput('testY', 'Upload .rds file. Test response vector/matrix/data.frame. Event/response column name must be specified if uploading a matrix/data.frame',
                               multiple = FALSE, accept = c('.rds')),
                     checkboxInput('cvCheck', 'Use cross-validation for training set model fitting.'),
                     checkboxInput('incrementalCheck', 'Fit incremental model'),
@@ -41,8 +44,8 @@ ui <- fluidPage(
                               multiple = FALSE, accept = c('.rds')),
                     selectInput('modelType', label = 'Select model type (binary/survival/continuous)', choices = c('binary', 'survival', 'continuous')),
                     textInput('n_years', label = 'Value of n for n-year risk prediction', value = '10'),
-                    textInput('tte_colname', label = 'Time-to-event column name in response table', value = 'time_to_event'),
-                    textInput('event_colname', label = 'Event column name in response table', value = 'Event'),
+                    textInput('tte_colname', label = 'Time-to-event column name in Y table', value = 'time_to_event'),
+                    textInput('event_colname', label = 'Event/response column name in Y matrix/data.frame. Required if Ys is uploaded as a matrix/data.frame', value = 'Event'),
                     selectInput('modelMethod', label = 'Select model method (glmnet/bart/rf)', choices = c('glmnet', 'bart', 'rf')),
                     actionButton('run', 'Run'),
                     shinyjs::hidden(p(id = 'processingText', 'Fitting model...'))
@@ -71,11 +74,11 @@ server <- function(input, output) {
         if (input$modelType == 'survival') {
             shinyjs::show('n_years')
             shinyjs::show('tte_colname')
-            shinyjs::show('event_colname')
+            # shinyjs::show('event_colname')
         } else {
             shinyjs::hide('n_years')
             shinyjs::hide('tte_colname')
-            shinyjs::hide('event_colname')
+            # shinyjs::hide('event_colname')
         }
     })
     
@@ -151,6 +154,16 @@ server <- function(input, output) {
         } else {
             testY <- testYDF()
         }
+        
+        # Make sure trainXs and testXs have column names in the same order
+        # browser()
+        trainXsColnames <- colnames(trainXs)
+        if (!is.null(trainXsColnames)) {
+            testXs <- testXs[, trainXsColnames]
+        }
+        # NOTE: if colnames(trainXs) is NULL, columns are assumed to align between trainXs and testXs.
+        # TODO: check number of columns are consistent across trainXs and testXs
+        
         # browser()
         eventColname <- input$event_colname
         
