@@ -245,8 +245,13 @@ server <- function(input, output) {
                 mprModel(fitMPRModel(type = input$modelType, method = input$modelMethod, trainXs = trainXs, trainY = trainY,
                                      tteColname = input$tte_colname, eventColname = input$event_colname, alpha = 0))
             } else {
-                mprModel(fitMPRModel(type = input$modelType, method = input$modelMethod, trainXs = trainXs, trainY = trainY[, eventColname],
-                                     tteColname = input$tte_colname, eventColname = input$event_colname, alpha = 0))
+                if (input$modelMethod == 'glmnet') {
+                    mprModel(fitMPRModel(type = input$modelType, method = input$modelMethod, trainXs = trainXs, trainY = trainY[, eventColname],
+                                         tteColname = input$tte_colname, eventColname = input$event_colname, alpha = 0))
+                } else if (input$modelMethod == 'bart') {
+                    mprModel(fitMPRModel(type = input$modelType, method = input$modelMethod, trainXs = trainXs, trainY = trainY[, eventColname],
+                                         tteColname = input$tte_colname, eventColname = input$event_colname, nskip = 1000L))
+                }
             }
         }
         if (input$incrementalCheck) {
@@ -258,7 +263,11 @@ server <- function(input, output) {
             if (input$cvCheck) {
                 testPredictions(predictMPRModel(model, testXs, s = 'lambda.min', type = 'link'))
             } else {
-                testPredictions(predictMPRModel(model, testXs, s = model$model$lambda[[1]], type = 'link'))
+                if (input$modelMethod == 'glmnet') {
+                    testPredictions(predictMPRModel(model, testXs, s = model$model$lambda[[1]], type = 'link'))
+                } else if (input$modelMethod == 'bart') {
+                    testPredictions(predictMPRModel(model, testXs))
+                }
             }
             # browser()
             if (is.null(incrementalXs)) {
