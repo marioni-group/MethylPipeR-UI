@@ -28,20 +28,20 @@ ui <- fluidPage(
             tabsetPanel(
                 tabPanel('Data upload and model specification',
                     fileInput('trainXs', 'Upload .rds file. Training data matrix/data.frame.',
-                              multiple = FALSE, accept = c('.rds')),
+                              multiple = FALSE, accept = c('.rds', '.csv')),
                     # bsButton('trainXsHelp', label = '', icon = icon('question'), style = 'info', size = 'extra-small'),
                     bsTooltip('trainXs', 'Rows should correspond to individuals in the dataset and columns should correspond to features.', 
                               placement = 'right', trigger = 'hover', options = list(container = 'body')),
                     fileInput('trainY', 'Upload .rds file. Training response vector/matrix/data.frame. Event/response column name must be specified if uploading a matrix/data.frame.',
-                              multiple = FALSE, accept = c('.rds')),
+                              multiple = FALSE, accept = c('.rds', '.csv')),
                     fileInput('testXs', 'Upload .rds file. Test data matrix/data.frame.',
-                              multiple = FALSE, accept = c('.rds')),
+                              multiple = FALSE, accept = c('.rds', '.csv')),
                     fileInput('testY', 'Upload .rds file. Test response vector/matrix/data.frame. Event/response column name must be specified if uploading a matrix/data.frame',
-                              multiple = FALSE, accept = c('.rds')),
+                              multiple = FALSE, accept = c('.rds', '.csv')),
                     checkboxInput('cvCheck', 'Use cross-validation for training set model fitting.'),
                     checkboxInput('incrementalCheck', 'Fit incremental model'),
                     fileInput('incrementalCovariates', 'Upload .rds or .csv file. Covariates matrix/data.frame for incremental model.',
-                              multiple = FALSE, accept = c('.rds')),
+                              multiple = FALSE, accept = c('.rds', '.csv')),
                     selectInput('modelType', label = 'Select model type (binary/survival/continuous)', choices = c('binary', 'survival', 'continuous')),
                     textInput('n_years', label = 'Value of n for n-year risk prediction', value = '10'),
                     textInput('tte_colname', label = 'Time-to-event column name in Y table', value = 'time_to_event'),
@@ -73,11 +73,11 @@ server <- function(input, output) {
     observeEvent(input$modelType, {
         if (input$modelType == 'survival') {
             shinyjs::show('n_years')
-            shinyjs::show('tte_colname')
+            # shinyjs::show('tte_colname')
             # shinyjs::show('event_colname')
         } else {
             shinyjs::hide('n_years')
-            shinyjs::hide('tte_colname')
+            # shinyjs::hide('tte_colname')
             # shinyjs::hide('event_colname')
         }
     })
@@ -111,31 +111,62 @@ server <- function(input, output) {
     
     trainXsDF <- reactive({
         req(input$trainXs)
-        df <- readRDS(input$trainXs$datapath)
+        extension <- tools::file_ext(input$trainXs$datapath)
+        
+        if (extension == 'csv') {
+            df <- read.csv(input$trainXs$datapath)
+        } else if (extension == 'rds') {
+            df <- readRDS(input$trainXs$datapath)
+        }
         df
     })
     
     trainYDF <- reactive({
+        # browser()
         req(input$trainY)
-        df <- readRDS(input$trainY$datapath)
+        extension <- tools::file_ext(input$trainY$datapath)
+        
+        if (extension == 'csv') {
+            df <- read.csv(input$trainY$datapath)
+        } else if (extension == 'rds') {
+            df <- readRDS(input$trainY$datapath)
+        }
         df
     })
     
     testXsDF <- reactive({
         req(input$testXs)
-        df <- readRDS(input$testXs$datapath)
+        extension <- tools::file_ext(input$testXs$datapath)
+        
+        if (extension == 'csv') {
+            df <- read.csv(input$testXs$datapath)
+        } else if (extension == 'rds') {
+            df <- readRDS(input$testXs$datapath)
+        }
         df
     })
     
     testYDF <- reactive({
         req(input$testY)
-        df <- readRDS(input$testY$datapath)
+        extension <- tools::file_ext(input$testY$datapath)
+        
+        if (extension == 'csv') {
+            df <- read.csv(input$testY$datapath)
+        } else if (extension == 'rds') {
+            df <- readRDS(input$testY$datapath)
+        }
         df
     })
     
     incrementalCovariatesDF <- reactive({
         req(input$incrementalCovariates)
-        df <- readRDS(input$incrementalCovariates$datapath)
+        extension <- tools::file_ext(input$incrementalCovariates$datapath)
+        
+        if (extension == 'csv') {
+            df <- read.csv(input$incrementalCovariates$datapath)
+        } else if (extension == 'rds') {
+            df <- readRDS(input$incrementalCovariates$datapath)
+        }
         df
     })
     
@@ -166,6 +197,7 @@ server <- function(input, output) {
         
         # browser()
         eventColname <- input$event_colname
+        tteColname <- input$tte_colname
         
         # If trainY is a vector, convert to a data.frame with a single column for consistency across model types
         if (is.vector(trainY)) {
@@ -180,7 +212,7 @@ server <- function(input, output) {
         
         if (input$tte_threshold_train) {
             # browser()
-            tteThresholdResult <- thresholdTTE(trainY, objectsToFilter = list('trainXs' = trainXs), threshold = as.numeric(input$tte_threshold))
+            tteThresholdResult <- thresholdTTE(trainY, objectsToFilter = list('trainXs' = trainXs), threshold = as.numeric(input$tte_threshold), eventColname = eventColname, tteColname = tteColname)
             trainY <- tteThresholdResult$targetFiltered
             trainXs <- tteThresholdResult$objectsFiltered$trainXs
             tteThresholdResult <- NULL
@@ -188,10 +220,11 @@ server <- function(input, output) {
         
         if (input$tte_threshold_test) {
             if (input$incrementalCheck) {
-                tteThresholdResult <- thresholdTTE(testY, objectsToFilter = list('testXs' = testXs, 'covariates' = as.data.frame(incrementalCovariatesDF())), threshold = as.numeric(input$tte_threshold))
+                tteThresholdResult <- thresholdTTE(testY, objectsToFilter = list('testXs' = testXs, 'covariates' = as.data.frame(incrementalCovariatesDF())), threshold = as.numeric(input$tte_threshold),
+                                                   eventColname = eventColname, tteColname = tteColname)
                 incrementalXs <- tteThresholdResult$objectsFiltered$covariates
             } else {
-                tteThresholdResult <- thresholdTTE(testY, objectsToFilter = list('testXs' = testXs), threshold = as.numeric(input$tte_threshold))
+                tteThresholdResult <- thresholdTTE(testY, objectsToFilter = list('testXs' = testXs), threshold = as.numeric(input$tte_threshold), eventColname = eventColname, tteColname = tteColname)
             }
             testY <- tteThresholdResult$targetFiltered
             testXs <- tteThresholdResult$objectsFiltered$testXs
@@ -252,7 +285,11 @@ server <- function(input, output) {
         # print(model_performance(model$null$model))
         # print()
         # print(model_performance(model$full$model))
-        compare_performance(model$full$model, model$null$model)
+        print('Full model (score and covariates) summary:')
+        print(summary(model$full$model))
+        print('Null model (covariates only) summary:')
+        print(summary(model$null$model))
+        print(compare_performance(model$full$model, model$null$model))
     })
     
     output$diagnostics <- renderPlot({
