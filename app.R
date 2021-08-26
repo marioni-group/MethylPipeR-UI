@@ -14,6 +14,8 @@ library(performance)
 library(see)
 library(shinyBS)
 
+source('user_parameter_handling.R')
+
 # Increase max file upload size to 30 GB
 options(shiny.maxRequestSize = 30 * 1024^3)
 
@@ -50,10 +52,13 @@ ui <- fluidPage(
                     actionButton('run', 'Run'),
                     shinyjs::hidden(p(id = 'processingText', 'Fitting model...'))
                 ),
+                tabPanel('Parameters',
+                    textAreaInput('model_fitting_parameters', 'Input model fitting parameters, one per line in the format <parameter> = <value>', rows = 3),
+                    textAreaInput('prediction_parameters', 'Input prediction function parameters, one per line in the format <parameter> = <value>', rows = 3)),
                 tabPanel('Preprocessing',
-                    checkboxInput('tte_threshold_train', 'Perform time-to-event thresholding on training set'),
-                    checkboxInput('tte_threshold_test', 'Perform time-to-event thresholding on test set'),
-                    textInput('tte_threshold', label = 'Time-to-event threshold', value = '10'))
+                         checkboxInput('tte_threshold_train', 'Perform time-to-event thresholding on training set'),
+                         checkboxInput('tte_threshold_test', 'Perform time-to-event thresholding on test set'),
+                         textInput('tte_threshold', label = 'Time-to-event threshold', value = '10'))
             )
         ),
         
@@ -68,7 +73,6 @@ ui <- fluidPage(
 )
 
 server <- function(input, output) {
-    
     # Dynamically show or hide text box for specifying n for n-year risk prediction (survival model only)
     observeEvent(input$modelType, {
         if (input$modelType == 'survival') {
@@ -170,7 +174,21 @@ server <- function(input, output) {
         df
     })
     
+    modelFittingParameters <- reactive({
+        # browser()
+        input$model_fitting_parameters
+    })
+    
+    predictionParameters <- reactive({
+        input$prediction_parameters
+    })
+    
     observeEvent(input$run, {
+        # For testing:
+        # browser()
+        fitFunctionParameters <- processParameterInput(modelFittingParameters())
+        predictFunctionParameters <- processParameterInput(predictionParameters())
+        
         disableInput()
         trainXs <- trainXsDF()
         trainY <- trainYDF()
@@ -231,44 +249,56 @@ server <- function(input, output) {
             tteThresholdResult <- NULL
         }
         
-        # This needs to be redesigned to handle all model types. Currently only works for glmnet
-        if (isolate(input$cvCheck)) {
+        addFitMPRModelParameters <- function(ps) {
+            ps$type <- input$modelType
+            ps$method <- input$modelMethod
+            ps$trainXs <- trainXs
             if (input$modelType == 'survival') {
-                mprModel(fitMPRModelCV(type = input$modelType, method = input$modelMethod, trainXs = trainXs, trainY = trainY, 
-                                       tteColname = input$tte_colname, eventColname = input$event_colname, alpha = 0))
+                ps$trainY <- trainY
             } else {
-                mprModel(fitMPRModelCV(type = input$modelType, method = input$modelMethod, trainXs = trainXs, trainY = trainY[, eventColname], 
-                                       tteColname = input$tte_colname, eventColname = input$event_colname, alpha = 0))
+                ps$trainY <- trainY[, eventColname]
             }
-        } else {
-            if (input$modelType == 'survival') {
-                mprModel(fitMPRModel(type = input$modelType, method = input$modelMethod, trainXs = trainXs, trainY = trainY,
-                                     tteColname = input$tte_colname, eventColname = input$event_colname, alpha = 0))
-            } else {
-                if (input$modelMethod == 'glmnet') {
-                    mprModel(fitMPRModel(type = input$modelType, method = input$modelMethod, trainXs = trainXs, trainY = trainY[, eventColname],
-                                         tteColname = input$tte_colname, eventColname = input$event_colname, alpha = 0))
-                } else if (input$modelMethod == 'bart') {
-                    mprModel(fitMPRModel(type = input$modelType, method = input$modelMethod, trainXs = trainXs, trainY = trainY[, eventColname],
-                                         tteColname = input$tte_colname, eventColname = input$event_colname, nskip = 1000L))
-                }
-            }
+            ps$tteColname <- input$tte_colname
+            ps$eventColname = input$event_colname
+            ps
         }
+        # browser()
+        fitFunctionParameters <- addFitMPRModelParameters(fitFunctionParameters)
+        if (input$cvCheck) {
+            fitMPRModelResult <- do.call(fitMPRModelCV, fitFunctionParameters)
+        } else {
+            fitMPRModelResult <- do.call(fitMPRModel, fitFunctionParameters)
+        }
+        mprModel(fitMPRModelResult)
+        
+        
+        
         if (input$incrementalCheck) {
             # browser()
             model <- mprModel()
+            
+            addPredictMPRModelParameters <- function(ps) {
+                ps$model <- model
+                ps$data <- testXs
+                ps
+            }
             # browser()
             # This will need to be adapted to reflect whether the model actually used CV or not rather than relying on the tickbox
             # It will also need to be adapted for other model methods and types
-            if (input$cvCheck) {
-                testPredictions(predictMPRModel(model, testXs, s = 'lambda.min', type = 'link'))
-            } else {
-                if (input$modelMethod == 'glmnet') {
-                    testPredictions(predictMPRModel(model, testXs, s = model$model$lambda[[1]], type = 'link'))
-                } else if (input$modelMethod == 'bart') {
-                    testPredictions(predictMPRModel(model, testXs))
-                }
-            }
+            
+            predictFunctionParameters <- addPredictMPRModelParameters(predictFunctionParameters)
+            predictMPRModelResult <- do.call(predictMPRModel, predictFunctionParameters)
+            testPredictions(predictMPRModelResult)
+            # if (input$cvCheck) {
+            #     # testPredictions(predictMPRModel(model, testXs, s = 'lambda.min', type = 'link'))
+            #     
+            # } else {
+            #     # if (input$modelMethod == 'glmnet') {
+            #     #     testPredictions(predictMPRModel(model, testXs, s = model$model$lambda[[1]], type = 'link'))
+            #     # } else if (input$modelMethod == 'bart') {
+            #     #     testPredictions(predictMPRModel(model, testXs))
+            #     # }
+            # }
             # browser()
             if (is.null(incrementalXs)) {
                 incrementalXs <- data.frame(incrementalCovariatesDF())
