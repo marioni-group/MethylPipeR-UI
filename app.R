@@ -72,7 +72,7 @@ ui <- fluidPage(
     )
 )
 
-server <- function(input, output) {
+server <- function(input, output, session) {
     # Dynamically show or hide text box for specifying n for n-year risk prediction (survival model only)
     observeEvent(input$modelType, {
         if (input$modelType == 'survival') {
@@ -84,6 +84,15 @@ server <- function(input, output) {
             # shinyjs::hide('tte_colname')
             # shinyjs::hide('event_colname')
         }
+    })
+    
+    observeEvent(input$modelMethod, {
+        updateTextAreaInput(session, 'model_fitting_parameters', value = getModelFittingParameterDefaults(input$modelMethod, input$cvCheck))
+        updateTextAreaInput(session, 'prediction_parameters', value = getPredictionParameterDefaults(input$modelMethod))
+    })
+    observeEvent(input$cvCheck, {
+        updateTextAreaInput(session, 'model_fitting_parameters', value = getModelFittingParameterDefaults(input$modelMethod, input$cvCheck))
+        updateTextAreaInput(session, 'prediction_parameters', value = getPredictionParameterDefaults(input$modelMethod))
     })
     
     glmFamilyLookup <- list('binary' = 'binomial', 'continuous' = 'gaussian', 'survival' = 'binomial')

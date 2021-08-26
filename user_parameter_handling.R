@@ -32,9 +32,13 @@ processParameterInput <- function(inputText) {
 
 
 
-getModelHyperparameterDefaults <- function(modelMethod, cv) {
+getModelFittingParameterDefaults <- function(modelMethod, cv) {
   if (cv) {
-    
+    if (modelMethod == 'glmnet') {
+      'alpha = 0.5'
+    } else {
+      ''
+    }
   } else {
     if (modelMethod == 'glmnet') {
       'alpha = 0'
@@ -42,6 +46,20 @@ getModelHyperparameterDefaults <- function(modelMethod, cv) {
       ''
     } else if (modelMethod == 'rf') {
       ''
+    } else {
+      ''
     }
+  }
+}
+
+getPredictionParameterDefaults <- function(modelMethod) {
+  if (modelMethod == 'glmnet') {
+    's = lambda.min\ntype = link'
+  } else if (modelMethod == 'bart') {
+    ''
+  } else if (modelMethod == 'rf') {
+    ''
+  } else {
+    ''
   }
 }
