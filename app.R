@@ -13,6 +13,7 @@ library(MethylPipeR)
 library(performance)
 library(see)
 library(shinyBS)
+library(prompter)
 
 source('user_parameter_handling.R')
 
@@ -23,26 +24,30 @@ ui <- fluidPage(
     shinyjs::useShinyjs(),
     theme = bs_theme(bootswatch = 'superhero'),
     
+    use_prompt(),
+    
     titlePanel("MethylPipeR"),
 
     sidebarLayout(
         sidebarPanel(
             tabsetPanel(
                 tabPanel('Data upload and model specification',
-                    fileInput('trainXs', 'Upload .rds file. Training data matrix/data.frame.',
-                              multiple = FALSE, accept = c('.rds', '.csv')),
+                    add_prompt(fileInput('trainXs', 'Upload rds/csv file. Training data matrix/data.frame.',
+                                         multiple = FALSE, accept = c('.rds', '.csv')), 
+                               position = 'right', message = 'Rows should correspond to individuals in the dataset and columns should correspond to features.'),
                     # bsButton('trainXsHelp', label = '', icon = icon('question'), style = 'info', size = 'extra-small'),
-                    bsTooltip('trainXs', 'Rows should correspond to individuals in the dataset and columns should correspond to features.', 
-                              placement = 'right', trigger = 'hover', options = list(container = 'body')),
-                    fileInput('trainY', 'Upload .rds file. Training response vector/matrix/data.frame. Event/response column name must be specified if uploading a matrix/data.frame.',
+                    # bsTooltip('trainXs', 'Rows should correspond to individuals in the dataset and columns should correspond to features.', 
+                    #           placement = 'right', trigger = 'hover', options = list(container = 'body')),
+                    fileInput('trainY', 'Upload rds/csv file. Training response vector/matrix/data.frame. Event/response column name must be specified if uploading a matrix/data.frame.',
                               multiple = FALSE, accept = c('.rds', '.csv')),
-                    fileInput('testXs', 'Upload .rds file. Test data matrix/data.frame.',
-                              multiple = FALSE, accept = c('.rds', '.csv')),
-                    fileInput('testY', 'Upload .rds file. Test response vector/matrix/data.frame. Event/response column name must be specified if uploading a matrix/data.frame',
+                    add_prompt(fileInput('testXs', 'Upload rds/csv file. Test data matrix/data.frame.',
+                                         multiple = FALSE, accept = c('.rds', '.csv')),
+                               position = 'right', message = 'Rows should correspond to individuals in the dataset and columns should correspond to features. The columns in the test data should match the columns in the training data.'),
+                    fileInput('testY', 'Upload rds/csv file. Test response vector/matrix/data.frame. Event/response column name must be specified if uploading a matrix/data.frame',
                               multiple = FALSE, accept = c('.rds', '.csv')),
                     checkboxInput('cvCheck', 'Use cross-validation for training set model fitting.'),
                     checkboxInput('incrementalCheck', 'Fit incremental model'),
-                    fileInput('incrementalCovariates', 'Upload .rds or .csv file. Covariates matrix/data.frame for incremental model.',
+                    fileInput('incrementalCovariates', 'Upload rds/csv file. Covariates matrix/data.frame for incremental model.',
                               multiple = FALSE, accept = c('.rds', '.csv')),
                     selectInput('modelType', label = 'Select model type (binary/survival/continuous)', choices = c('binary', 'survival', 'continuous')),
                     textInput('n_years', label = 'Value of n for n-year risk prediction', value = '10'),
