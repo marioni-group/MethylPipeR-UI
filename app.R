@@ -70,8 +70,8 @@ ui <- fluidPage(
         mainPanel(
             tabsetPanel(
                 tabPanel('Diagnostics', plotOutput('diagnostics', height = '800px')),
-                tabPanel('Performance', verbatimTextOutput('console', placeholder = FALSE)),
-                tabPanel('Train + Test Performance', verbatimTextOutput('train_test_performance', placeholder = FALSE))
+                tabPanel('Performance', verbatimTextOutput('console', placeholder = FALSE))# ,
+                # tabPanel('Train + Test Performance', verbatimTextOutput('train_test_performance', placeholder = FALSE))
             )
         )
     )
@@ -353,18 +353,20 @@ server <- function(input, output, session) {
         # browser()
         req(incrementalModel())
         incrementalModelResult <- incrementalModel()
-        check_model(incrementalModelResult$full$model)
+        if (isolate(input$modelType == 'continuous')) {
+            check_model(incrementalModelResult$full$model)
+        }
         # plot(compare_performance(incrementalModelResult$full$model, incrementModelResult$null$model))
     })
     
-    output$train_test_performance <- renderPrint({
-        if (modelReady()) {
-            enableInput()
-            modelReady(FALSE)
-        }
-        req(mprModel())
-        print(summary(isolate(mprModel()$model)))
-    })
+    # output$train_test_performance <- renderPrint({
+    #     if (modelReady()) {
+    #         enableInput()
+    #         modelReady(FALSE)
+    #     }
+    #     req(mprModel())
+    #     print(summary(isolate(mprModel()$model)))
+    # })
 }
 
 # Run the application 
