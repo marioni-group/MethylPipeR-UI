@@ -44,6 +44,14 @@ logLines <- function(...) {
     # cat(..., file = sessionLogFilepath, sep = '\n', append = TRUE)
 }
 
+saveMPRModelObject <- function(model) {
+    folderPath <- paste0(sessionLogFolder, 'models_', sessionStartTimestamp, '/')
+    dir.create(paste0(folderPath))
+    filePath <- paste0(folderPath, model$modelType, '_', model$modelMethod, '_', format(Sys.time(), '%Y_%m_%d_%H_%M_%S'), '.rds')
+    saveRDS(model, file = filePath)
+    logLines(paste0('Saved model in ', filePath))
+}
+
 ui <- fluidPage(
     shinyjs::useShinyjs(),
     theme = bs_theme(bootswatch = 'superhero'),
@@ -59,17 +67,16 @@ ui <- fluidPage(
                     add_prompt(fileInput('trainXs', 'Upload rds/csv file. Training data matrix/data.frame.',
                                          multiple = FALSE, accept = c('.rds', '.csv')), 
                                position = 'right', message = 'Rows should correspond to individuals in the dataset and columns should correspond to features.'),
-                    # bsButton('trainXsHelp', label = '', icon = icon('question'), style = 'info', size = 'extra-small'),
-                    # bsTooltip('trainXs', 'Rows should correspond to individuals in the dataset and columns should correspond to features.', 
-                    #           placement = 'right', trigger = 'hover', options = list(container = 'body')),
-                    fileInput('trainY', 'Upload rds/csv file. Training response vector/matrix/data.frame. Event/response column name must be specified if uploading a matrix/data.frame.',
+                    add_prompt(fileInput('trainY', 'Upload rds/csv file. Training response vector/matrix/data.frame. Event/response column name must be specified if uploading a matrix/data.frame.',
                               multiple = FALSE, accept = c('.rds', '.csv')),
+                               position = 'right', message = 'The length of the vector/number of rows in the matrix should be the same as the number of rows in the training data.'),
                     add_prompt(fileInput('testXs', 'Upload rds/csv file. Test data matrix/data.frame.',
                                          multiple = FALSE, accept = c('.rds', '.csv')),
                                position = 'right', message = 'Rows should correspond to individuals in the dataset and columns should correspond to features. The columns in the test data should match the columns in the training data.'),
-                    fileInput('testY', 'Upload rds/csv file. Test response vector/matrix/data.frame. Event/response column name must be specified if uploading a matrix/data.frame',
+                    add_prompt(fileInput('testY', 'Upload rds/csv file. Test response vector/matrix/data.frame. Event/response column name must be specified if uploading a matrix/data.frame',
                               multiple = FALSE, accept = c('.rds', '.csv')),
-                    checkboxInput('cvCheck', 'Use cross-validation for training set model fitting.'),
+                               position = 'right', message = 'The length of the vector/number of rows in the matrix should be the same as the number of rows in the test data.'),
+                    checkboxInput('cvCheck', 'Select hyperparameters using cross-validation for training set model fitting.'),
                     checkboxInput('incrementalCheck', 'Fit incremental model'),
                     fileInput('incrementalCovariates', 'Upload rds/csv file. Covariates matrix/data.frame for incremental model.',
                               multiple = FALSE, accept = c('.rds', '.csv')),
@@ -78,6 +85,7 @@ ui <- fluidPage(
                     textInput('tte_colname', label = 'Time-to-event column name in Y table', value = 'time_to_event'),
                     textInput('event_colname', label = 'Event/response column name in Y matrix/data.frame. Required if Ys is uploaded as a matrix/data.frame', value = 'Event'),
                     selectInput('modelMethod', label = 'Select model method (glmnet/bart/rf)', choices = c('glmnet', 'bart', 'rf')),
+                    checkboxInput('save_model', 'Save model object to file'),
                     actionButton('run', 'Run'),
                     shinyjs::hidden(p(id = 'processingText', 'Fitting model...'))
                 ),
@@ -331,6 +339,9 @@ server <- function(input, output, session) {
                  capture.output(print(fitTime)))
         mprModel(fitMPRModelResult)
         
+        if (input$save_model) {
+            saveMPRModelObject(fitMPRModelResult)
+        }
         
         
         if (input$incrementalCheck) {
