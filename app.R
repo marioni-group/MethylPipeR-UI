@@ -41,7 +41,6 @@ logLines <- function(...) {
     lineList$sep = '\n'
     lineList$append = TRUE
     do.call(cat, lineList)
-    # cat(..., file = sessionLogFilepath, sep = '\n', append = TRUE)
 }
 
 saveMPRModelObject <- function(model) {
@@ -114,12 +113,8 @@ server <- function(input, output, session) {
     observeEvent(input$modelType, {
         if (input$modelType == 'survival') {
             shinyjs::show('n_years')
-            # shinyjs::show('tte_colname')
-            # shinyjs::show('event_colname')
         } else {
             shinyjs::hide('n_years')
-            # shinyjs::hide('tte_colname')
-            # shinyjs::hide('event_colname')
         }
     })
     
@@ -221,7 +216,6 @@ server <- function(input, output, session) {
     })
     
     modelFittingParameters <- reactive({
-        # browser()
         input$model_fitting_parameters
     })
     
@@ -230,8 +224,6 @@ server <- function(input, output, session) {
     })
     
     observeEvent(input$run, {
-        # For testing:
-        # browser()
         fitFunctionParameters <- processParameterInput(modelFittingParameters())
         predictFunctionParameters <- processParameterInput(predictionParameters())
         
@@ -251,7 +243,6 @@ server <- function(input, output, session) {
         }
         
         # Make sure trainXs and testXs have column names in the same order
-        # browser()
         trainXsColnames <- colnames(trainXs)
         if (!is.null(trainXsColnames)) {
             testXs <- testXs[, trainXsColnames]
@@ -259,7 +250,6 @@ server <- function(input, output, session) {
         # NOTE: if colnames(trainXs) is NULL, columns are assumed to align between trainXs and testXs.
         # TODO: check number of columns are consistent across trainXs and testXs
         
-        # browser()
         eventColname <- input$event_colname
         tteColname <- input$tte_colname
         
@@ -275,7 +265,6 @@ server <- function(input, output, session) {
         }
         
         if (input$tte_threshold_train) {
-            # browser()
             tteThresholdResult <- thresholdTTE(trainY, objectsToFilter = list('trainXs' = trainXs), threshold = as.numeric(input$tte_threshold), eventColname = eventColname, tteColname = tteColname)
             trainY <- tteThresholdResult$targetFiltered
             trainXs <- tteThresholdResult$objectsFiltered$trainXs
@@ -308,15 +297,6 @@ server <- function(input, output, session) {
             ps$eventColname = input$event_colname
             ps
         }
-        # browser()
-        # cat('Fitting MPRModel.',
-        #     paste0('Model type: ', input$modelType),
-        #     paste0('Model method: ', input$modelMethod),
-        #     paste0('Using cross-validation for hyperparameter selection: ', input$cvCheck),
-        #     'Additional fitMPRModel parameters:',
-        #     capture.output(print(fitFunctionParameters)), 
-        #     file = sessionLogFilepath,
-        #     sep = '\n', append = TRUE)
         logLines('Fitting MPRModel.',
                  paste0('Model type: ', input$modelType),
                  paste0('Model method: ', input$modelMethod),
@@ -331,10 +311,6 @@ server <- function(input, output, session) {
             fitMPRModelResult <- do.call(fitMPRModel, fitFunctionParameters)
         }
         fitTime <- proc.time() - beforeFitTime
-        # cat('MPRModel fitting time:',
-        #            capture.output(print(fitTime)),
-        #            file = sessionLogFilepath,
-        #            sep = '\n', append = TRUE)
         logLines('MPRModel fitting time:',
                  capture.output(print(fitTime)))
         mprModel(fitMPRModelResult)
@@ -345,7 +321,6 @@ server <- function(input, output, session) {
         
         
         if (input$incrementalCheck) {
-            # browser()
             model <- mprModel()
             
             addPredictMPRModelParameters <- function(ps) {
@@ -353,24 +328,11 @@ server <- function(input, output, session) {
                 ps$data <- testXs
                 ps
             }
-            # browser()
-            # This will need to be adapted to reflect whether the model actually used CV or not rather than relying on the tickbox
-            # It will also need to be adapted for other model methods and types
             
             predictFunctionParameters <- addPredictMPRModelParameters(predictFunctionParameters)
             predictMPRModelResult <- do.call(predictMPRModel, predictFunctionParameters)
             testPredictions(predictMPRModelResult)
-            # if (input$cvCheck) {
-            #     # testPredictions(predictMPRModel(model, testXs, s = 'lambda.min', type = 'link'))
-            #     
-            # } else {
-            #     # if (input$modelMethod == 'glmnet') {
-            #     #     testPredictions(predictMPRModel(model, testXs, s = model$model$lambda[[1]], type = 'link'))
-            #     # } else if (input$modelMethod == 'bart') {
-            #     #     testPredictions(predictMPRModel(model, testXs))
-            #     # }
-            # }
-            # browser()
+            
             if (is.null(incrementalXs)) {
                 incrementalXs <- data.frame(incrementalCovariatesDF())
             }
@@ -388,13 +350,10 @@ server <- function(input, output, session) {
             enableInput()
             modelReady(FALSE)
         }
-        # summary(mprModel()$model)
+
         req(incrementalModel())
         model <- isolate(incrementalModel())
         
-        # print(model_performance(model$null$model))
-        # print()
-        # print(model_performance(model$full$model))
         print('Full model (score and covariates) summary:')
         print(summary(model$full$model))
         print('Null model (covariates only) summary:')
@@ -407,23 +366,13 @@ server <- function(input, output, session) {
             enableInput()
             modelReady(FALSE)
         }
-        # browser()
+
         req(incrementalModel())
         incrementalModelResult <- incrementalModel()
         if (isolate(input$modelType == 'continuous')) {
             check_model(incrementalModelResult$full$model)
         }
-        # plot(compare_performance(incrementalModelResult$full$model, incrementModelResult$null$model))
     })
-    
-    # output$train_test_performance <- renderPrint({
-    #     if (modelReady()) {
-    #         enableInput()
-    #         modelReady(FALSE)
-    #     }
-    #     req(mprModel())
-    #     print(summary(isolate(mprModel()$model)))
-    # })
     
     session$onSessionEnded(function() {
         sink()
