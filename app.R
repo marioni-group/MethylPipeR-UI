@@ -20,6 +20,30 @@ source('user_parameter_handling.R')
 # Increase max file upload size to 30 GB
 options(shiny.maxRequestSize = 30 * 1024^3)
 
+sessionStartTimestamp <- format(Sys.time(), '%Y_%m_%d_%H_%M_%S')
+sessionLogFolder <- 'C:/Users/s2092119/Documents/PhD/Omics Prediction of Incident Disease/R Package/MethylPipeR-UI_logs/'
+sessionLogFileName <- paste0('session_log_', sessionStartTimestamp, '.txt')
+sessionLogFilepath <- paste0(sessionLogFolder, sessionLogFileName)
+
+sessionConsoleFilepath <- paste0(sessionLogFolder, 'console_log_', sessionStartTimestamp, '.txt')
+sink(sessionConsoleFilepath)
+
+sessionLogFile <- file(sessionLogFilepath)
+writeLines(paste0('Starting MethylPipeR-UI session. Timestamp: ', sessionStartTimestamp), sessionLogFile)
+close(sessionLogFile)
+
+logLines <- function(...) {
+    lineList <- list(...)
+    lineList <- lapply(lineList, function(txt) {
+        paste0(format(Sys.time(), '[%H:%M:%S] '), txt)
+    })
+    lineList$file = sessionLogFilepath
+    lineList$sep = '\n'
+    lineList$append = TRUE
+    do.call(cat, lineList)
+    # cat(..., file = sessionLogFilepath, sep = '\n', append = TRUE)
+}
+
 ui <- fluidPage(
     shinyjs::useShinyjs(),
     theme = bs_theme(bootswatch = 'superhero'),
@@ -277,12 +301,34 @@ server <- function(input, output, session) {
             ps
         }
         # browser()
+        # cat('Fitting MPRModel.',
+        #     paste0('Model type: ', input$modelType),
+        #     paste0('Model method: ', input$modelMethod),
+        #     paste0('Using cross-validation for hyperparameter selection: ', input$cvCheck),
+        #     'Additional fitMPRModel parameters:',
+        #     capture.output(print(fitFunctionParameters)), 
+        #     file = sessionLogFilepath,
+        #     sep = '\n', append = TRUE)
+        logLines('Fitting MPRModel.',
+                 paste0('Model type: ', input$modelType),
+                 paste0('Model method: ', input$modelMethod),
+                 paste0('Using cross-validation for hyperparameter selection: ', input$cvCheck),
+                 'Additional fitMPRModel parameters:',
+                 capture.output(print(fitFunctionParameters)))
         fitFunctionParameters <- addFitMPRModelParameters(fitFunctionParameters)
+        beforeFitTime <- proc.time()
         if (input$cvCheck) {
             fitMPRModelResult <- do.call(fitMPRModelCV, fitFunctionParameters)
         } else {
             fitMPRModelResult <- do.call(fitMPRModel, fitFunctionParameters)
         }
+        fitTime <- proc.time() - beforeFitTime
+        # cat('MPRModel fitting time:',
+        #            capture.output(print(fitTime)),
+        #            file = sessionLogFilepath,
+        #            sep = '\n', append = TRUE)
+        logLines('MPRModel fitting time:',
+                 capture.output(print(fitTime)))
         mprModel(fitMPRModelResult)
         
         
@@ -367,6 +413,10 @@ server <- function(input, output, session) {
     #     req(mprModel())
     #     print(summary(isolate(mprModel()$model)))
     # })
+    
+    session$onSessionEnded(function() {
+        sink()
+    })
 }
 
 # Run the application 
