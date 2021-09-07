@@ -101,14 +101,17 @@ ui <- fluidPage(
         mainPanel(
             tabsetPanel(
                 tabPanel('Diagnostics', plotOutput('diagnostics', height = '800px')),
-                tabPanel('Performance', verbatimTextOutput('console', placeholder = FALSE))# ,
-                # tabPanel('Train + Test Performance', verbatimTextOutput('train_test_performance', placeholder = FALSE))
+                tabPanel('Performance', verbatimTextOutput('performance', placeholder = FALSE)),
+                tabPanel('Binary Model Metrics', plotOutput('binary_model_metrics', height = '800px')),
+                tabPanel('Console', verbatimTextOutput('console', placeholder = FALSE))
             )
         )
     )
 )
 
 server <- function(input, output, session) {
+    consoleFile <- reactiveFileReader(1000, session, sessionConsoleFilepath, readLines)
+    
     # Dynamically show or hide text box for specifying n for n-year risk prediction (survival model only)
     observeEvent(input$modelType, {
         if (input$modelType == 'survival') {
@@ -345,7 +348,7 @@ server <- function(input, output, session) {
         modelReady(TRUE)
     })
     
-    output$console <- renderPrint({
+    output$performance <- renderPrint({
         if (modelReady()) {
             enableInput()
             modelReady(FALSE)
@@ -374,8 +377,28 @@ server <- function(input, output, session) {
         }
     })
     
+    output$binary_model_metrics <- renderPlot({
+        if (modelReady()) {
+            enableInput()
+            modelReady(FALSE)
+        }
+        
+        req(incrementalModel())
+        incrementalModelResult <- incrementalModel()
+        if (isolate(input$modelType == 'binary')) {
+            plotMPRIncrementalModelConfusionMatrix(incrementalModelResult$null$response,
+                                                   incrementalModelResult$full$response,
+                                                   isolate(testYDF()))
+        }
+    })
+    
     session$onSessionEnded(function() {
         sink()
+    })
+    
+    output$console <- renderPrint({
+        req(consoleFile())
+        consoleFile()
     })
 }
 
