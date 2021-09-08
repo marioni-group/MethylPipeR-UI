@@ -66,13 +66,13 @@ ui <- fluidPage(
                     add_prompt(fileInput('trainXs', 'Upload rds/csv file. Training data matrix/data.frame.',
                                          multiple = FALSE, accept = c('.rds', '.csv')), 
                                position = 'right', message = 'Rows should correspond to individuals in the dataset and columns should correspond to features.'),
-                    add_prompt(fileInput('trainY', 'Upload rds/csv file. Training response vector/matrix/data.frame. Event/response column name must be specified if uploading a matrix/data.frame.',
+                    add_prompt(fileInput('trainY', 'Upload rds/csv file. Training target vector/matrix/data.frame. Event/response column name must be specified if uploading a matrix/data.frame.',
                               multiple = FALSE, accept = c('.rds', '.csv')),
                                position = 'right', message = 'The length of the vector/number of rows in the matrix should be the same as the number of rows in the training data.'),
                     add_prompt(fileInput('testXs', 'Upload rds/csv file. Test data matrix/data.frame.',
                                          multiple = FALSE, accept = c('.rds', '.csv')),
                                position = 'right', message = 'Rows should correspond to individuals in the dataset and columns should correspond to features. The columns in the test data should match the columns in the training data.'),
-                    add_prompt(fileInput('testY', 'Upload rds/csv file. Test response vector/matrix/data.frame. Event/response column name must be specified if uploading a matrix/data.frame',
+                    add_prompt(fileInput('testY', 'Upload rds/csv file. Test target vector/matrix/data.frame. Event/response column name must be specified if uploading a matrix/data.frame',
                               multiple = FALSE, accept = c('.rds', '.csv')),
                                position = 'right', message = 'The length of the vector/number of rows in the matrix should be the same as the number of rows in the test data.'),
                     checkboxInput('cvCheck', 'Select hyperparameters using cross-validation for training set model fitting.'),
@@ -82,7 +82,7 @@ ui <- fluidPage(
                     selectInput('modelType', label = 'Select model type (binary/survival/continuous)', choices = c('binary', 'survival', 'continuous')),
                     textInput('n_years', label = 'Value of n for n-year risk prediction', value = '10'),
                     textInput('tte_colname', label = 'Time-to-event column name in Y table', value = 'time_to_event'),
-                    textInput('event_colname', label = 'Event/response column name in Y matrix/data.frame. Required if Ys is uploaded as a matrix/data.frame', value = 'Event'),
+                    textInput('event_colname', label = 'Event/target column name in Y matrix/data.frame. Required if Ys is uploaded as a matrix/data.frame', value = 'Event'),
                     selectInput('modelMethod', label = 'Select model method (glmnet/bart/rf)', choices = c('glmnet', 'bart', 'rf')),
                     checkboxInput('save_model', 'Save model object to file'),
                     actionButton('run', 'Run'),
@@ -102,7 +102,7 @@ ui <- fluidPage(
             tabsetPanel(
                 tabPanel('Diagnostics', plotOutput('diagnostics', height = '800px')),
                 tabPanel('Performance', verbatimTextOutput('performance', placeholder = FALSE)),
-                tabPanel('Binary Model Metrics', plotOutput('binary_model_metrics', height = '800px')),
+                tabPanel('Binary Model Metrics', plotOutput('binary_model_metrics', height = '500px'), plotOutput('roc', height = '500px')),
                 tabPanel('Console', verbatimTextOutput('console', placeholder = FALSE))
             )
         )
@@ -389,6 +389,19 @@ server <- function(input, output, session) {
             plotMPRIncrementalModelConfusionMatrix(incrementalModelResult$null$response,
                                                    incrementalModelResult$full$response,
                                                    isolate(testYDF()))
+        }
+    })
+    
+    output$roc <- renderPlot({
+        if (modelReady()) {
+            enableInput()
+            modelReady(FALSE)
+        }
+        
+        req(incrementalModel())
+        incrementalModelResult <- incrementalModel()
+        if (isolate(input$modelType == 'binary')) {
+            plotMPRIncrementalModelROC(incrementalModelResult)
         }
     })
     
