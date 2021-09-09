@@ -361,7 +361,7 @@ server <- function(input, output, session) {
         print(summary(model$full$model))
         print('Null model (covariates only) summary:')
         print(summary(model$null$model))
-        print(compare_performance(model$full$model, model$null$model))
+        print(compare_performance('Full Model' = model$full$model, 'Null Model' = model$null$model))
     })
     
     output$diagnostics <- renderPlot({
