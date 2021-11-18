@@ -410,6 +410,10 @@ server <- function(input, output, session) {
     })
     
     output$console <- renderPrint({
+        if (modelReady()) {
+            enableInput()
+            modelReady(FALSE)
+        }
         req(consoleFile())
         consoleFile()
     })
