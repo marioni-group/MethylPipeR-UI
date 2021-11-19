@@ -2,12 +2,6 @@
 MethylPipeR-UI is a Shiny app that provides all the functionality of MethylPipeR, without having to write a single line of code!
 This guide describes the steps required to run a basic pipeline experiment.
 
-## Installation
-To install MethylPipeR-UI, use the following in R:
-```r
-remotes::install_github('marioni-group/methylpiper-ui')
-```
-
 ## Initial setup
 In future versions, this will be changed to use a config file, but for now a log directory needs to be specified.
 This can be done by entering the path of your desired log folder in the following line:
