@@ -20,36 +20,38 @@ source('user_parameter_handling.R')
 # Increase max file upload size to 30 GB
 options(shiny.maxRequestSize = 30 * 1024^3)
 
-sessionStartTimestamp <- format(Sys.time(), '%Y_%m_%d_%H_%M_%S')
+# sessionStartTimestamp <- format(Sys.time(), '%Y_%m_%d_%H_%M_%S')
 sessionLogFolder <- 'C:/Users/s2092119/Documents/PhD/Omics Prediction of Incident Disease/R Package/MethylPipeR-UI_logs/'
-sessionLogFileName <- paste0('session_log_', sessionStartTimestamp, '.txt')
-sessionLogFilepath <- paste0(sessionLogFolder, sessionLogFileName)
+# sessionLogFileName <- paste0('session_log_', sessionStartTimestamp, '.txt')
+# sessionLogFilepath <- paste0(sessionLogFolder, sessionLogFileName)
 
-sessionConsoleFilepath <- paste0(sessionLogFolder, 'console_log_', sessionStartTimestamp, '.txt')
-sink(sessionConsoleFilepath)
+# sessionConsoleFilepath <- paste0(sessionLogFolder, 'console_log_', sessionStartTimestamp, '.txt')
+# sink(sessionConsoleFilepath)
 
-sessionLogFile <- file(sessionLogFilepath)
-writeLines(paste0('Starting MethylPipeR-UI session. Timestamp: ', sessionStartTimestamp), sessionLogFile)
-close(sessionLogFile)
+# sessionLogFile <- file(sessionLogFilepath)
+# writeLines(paste0('Starting MethylPipeR-UI session. Timestamp: ', sessionStartTimestamp), sessionLogFile)
+# close(sessionLogFile)
 
-logLines <- function(...) {
-    lineList <- list(...)
-    lineList <- lapply(lineList, function(txt) {
-        paste0(format(Sys.time(), '[%H:%M:%S] '), txt)
-    })
-    lineList$file = sessionLogFilepath
-    lineList$sep = '\n'
-    lineList$append = TRUE
-    do.call(cat, lineList)
-}
+# logLines <- function(...) {
+#     lineList <- list(...)
+#     lineList <- lapply(lineList, function(txt) {
+#         paste0(format(Sys.time(), '[%H:%M:%S] '), txt)
+#     })
+#     lineList$file = sessionLogFilepath
+#     lineList$sep = '\n'
+#     lineList$append = TRUE
+#     do.call(cat, lineList)
+# }
 
-saveMPRModelObject <- function(model) {
-    folderPath <- paste0(sessionLogFolder, 'models_', sessionStartTimestamp, '/')
-    dir.create(paste0(folderPath))
-    filePath <- paste0(folderPath, model$modelType, '_', model$modelMethod, '_', format(Sys.time(), '%Y_%m_%d_%H_%M_%S'), '.rds')
-    saveRDS(model, file = filePath)
-    logLines(paste0('Saved model in ', filePath))
-}
+initLogs(sessionLogFolder)
+
+# saveMPRModelObject <- function(model) {
+#     folderPath <- paste0(sessionLogFolder, 'models_', sessionStartTimestamp, '/')
+#     dir.create(paste0(folderPath))
+#     filePath <- paste0(folderPath, model$modelType, '_', model$modelMethod, '_', format(Sys.time(), '%Y_%m_%d_%H_%M_%S'), '.rds')
+#     saveRDS(model, file = filePath)
+#     logLines(paste0('Saved model in ', filePath))
+# }
 
 ui <- fluidPage(
     shinyjs::useShinyjs(),
@@ -110,7 +112,7 @@ ui <- fluidPage(
 )
 
 server <- function(input, output, session) {
-    consoleFile <- reactiveFileReader(1000, session, sessionConsoleFilepath, readLines)
+    consoleFile <- reactiveFileReader(1000, session, getOption('mprSessionConsoleFilepath'), readLines)
     
     # Dynamically show or hide text box for specifying n for n-year risk prediction (survival model only)
     observeEvent(input$modelType, {
@@ -300,7 +302,7 @@ server <- function(input, output, session) {
             ps$eventColname = input$event_colname
             ps
         }
-        logLines('Fitting MPRModel.',
+        logSessionLines('Fitting MPRModel.',
                  paste0('Model type: ', input$modelType),
                  paste0('Model method: ', input$modelMethod),
                  paste0('Using cross-validation for hyperparameter selection: ', input$cvCheck),
@@ -314,7 +316,7 @@ server <- function(input, output, session) {
             fitMPRModelResult <- do.call(fitMPRModel, fitFunctionParameters)
         }
         fitTime <- proc.time() - beforeFitTime
-        logLines('MPRModel fitting time:',
+        logSessionLines('MPRModel fitting time:',
                  capture.output(print(fitTime)))
         mprModel(fitMPRModelResult)
         
