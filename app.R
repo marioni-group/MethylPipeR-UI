@@ -20,38 +20,9 @@ source('user_parameter_handling.R')
 # Increase max file upload size to 30 GB
 options(shiny.maxRequestSize = 30 * 1024^3)
 
-# sessionStartTimestamp <- format(Sys.time(), '%Y_%m_%d_%H_%M_%S')
 sessionLogFolder <- 'C:/Users/s2092119/Documents/PhD/Omics Prediction of Incident Disease/R Package/MethylPipeR-UI_logs/'
-# sessionLogFileName <- paste0('session_log_', sessionStartTimestamp, '.txt')
-# sessionLogFilepath <- paste0(sessionLogFolder, sessionLogFileName)
-
-# sessionConsoleFilepath <- paste0(sessionLogFolder, 'console_log_', sessionStartTimestamp, '.txt')
-# sink(sessionConsoleFilepath)
-
-# sessionLogFile <- file(sessionLogFilepath)
-# writeLines(paste0('Starting MethylPipeR-UI session. Timestamp: ', sessionStartTimestamp), sessionLogFile)
-# close(sessionLogFile)
-
-# logLines <- function(...) {
-#     lineList <- list(...)
-#     lineList <- lapply(lineList, function(txt) {
-#         paste0(format(Sys.time(), '[%H:%M:%S] '), txt)
-#     })
-#     lineList$file = sessionLogFilepath
-#     lineList$sep = '\n'
-#     lineList$append = TRUE
-#     do.call(cat, lineList)
-# }
 
 initLogs(sessionLogFolder)
-
-# saveMPRModelObject <- function(model) {
-#     folderPath <- paste0(sessionLogFolder, 'models_', sessionStartTimestamp, '/')
-#     dir.create(paste0(folderPath))
-#     filePath <- paste0(folderPath, model$modelType, '_', model$modelMethod, '_', format(Sys.time(), '%Y_%m_%d_%H_%M_%S'), '.rds')
-#     saveRDS(model, file = filePath)
-#     logLines(paste0('Saved model in ', filePath))
-# }
 
 ui <- fluidPage(
     shinyjs::useShinyjs(),
